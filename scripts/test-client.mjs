@@ -62,6 +62,62 @@ async function main() {
   } catch (error) {
     console.error("Weather Tool Error:", error);
   }
+  
+  // Test AppTweak Analysis Tool - Reviews
+  try {
+    console.log("\n--- Testing AppTweak Analysis Tool (Reviews) ---");
+    const appTweakReviews = await client.invokeTool("appTweakAnalysis", { 
+      appId: "com.facebook.katana", 
+      platform: "ios",
+      analysisType: "reviews",
+      country: "US"
+    });
+    console.log("AppTweak Reviews Analysis:", appTweakReviews);
+  } catch (error) {
+    console.error("AppTweak Tool Error (Reviews):", error);
+  }
+  
+  // Test AppTweak Analysis Tool - Keywords
+  try {
+    console.log("\n--- Testing AppTweak Analysis Tool (Keywords) ---");
+    const appTweakKeywords = await client.invokeTool("appTweakAnalysis", { 
+      appId: "com.spotify.music", 
+      platform: "android",
+      analysisType: "keywords",
+      country: "GB"
+    });
+    console.log("AppTweak Keywords Analysis:", appTweakKeywords);
+  } catch (error) {
+    console.error("AppTweak Tool Error (Keywords):", error);
+  }
+  
+  // Test AppTweak Analysis Tool - Competitors
+  try {
+    console.log("\n--- Testing AppTweak Analysis Tool (Competitors) ---");
+    const appTweakCompetitors = await client.invokeTool("appTweakAnalysis", { 
+      appId: "com.duolingo", 
+      platform: "ios",
+      analysisType: "competitors",
+      country: "FR"
+    });
+    console.log("AppTweak Competitors Analysis:", appTweakCompetitors);
+  } catch (error) {
+    console.error("AppTweak Tool Error (Competitors):", error);
+  }
+  
+  // Test AppTweak Analysis Tool - Ratings
+  try {
+    console.log("\n--- Testing AppTweak Analysis Tool (Ratings) ---");
+    const appTweakRatings = await client.invokeTool("appTweakAnalysis", { 
+      appId: "com.tinder", 
+      platform: "android",
+      analysisType: "ratings",
+      country: "JP"
+    });
+    console.log("AppTweak Ratings Analysis:", appTweakRatings);
+  } catch (error) {
+    console.error("AppTweak Tool Error (Ratings):", error);
+  }
 }
 
 main().catch(console.error);
