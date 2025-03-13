@@ -316,39 +316,194 @@ const AppDetailsSection = ({ appId, platform }) => {
 2. **Automatic Routing**: The routing happens automatically based on the metadata returned from the server
 3. **Improved Performance**: The MCP server handles caching to reduce API calls
 4. **Better Error Handling**: Errors are handled consistently across all API calls
-5. **Reduced API Key Exposure**: Your AppTweak API key stays on the server, not in the frontend code
 
-## Step 6: Update Tab Components to Support MCP Integration
+## Step 6: Create Custom Data Hooks
 
-To fully leverage the MCP server's routing capabilities, you'll need to ensure your tab components correctly handle the routing information. Here's how to update the `OverviewTab.tsx` component to work with the MCP integration:
+Create a new file `src/hooks/app-data.ts` to centralize all your data fetching hooks:
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMcp } from '@/contexts/McpContext';
+
+// App Details
+export function useAppDetails(appId: string, platform: 'ios' | 'android') {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['app-details', appId, platform],
+    queryFn: async () => invoke('get_app_details', { appId, platform }),
+    enabled: !!appId && !!platform,
+  });
+}
+
+// Reviews
+export function useAppReviews(appId: string, platform: 'ios' | 'android', country = 'US') {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['app-reviews', appId, platform, country],
+    queryFn: async () => invoke('get_reviews', { appId, platform, country }),
+    enabled: !!appId && !!platform,
+  });
+}
+
+export function useTopDisplayedReviews(
+  appId: string, 
+  platform: 'ios' | 'android', 
+  sort: 'most_useful' | 'most_recent' | 'most_positive' = 'most_useful'
+) {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['top-reviews', appId, platform, sort],
+    queryFn: async () => invoke('get_top_displayed_reviews', { 
+      appId, 
+      platform, 
+      sort,
+      size: 50,
+    }),
+    enabled: !!appId && !!platform,
+  });
+}
+
+export function useRatingsAnalysis(
+  appId: string, 
+  platform: 'ios' | 'android',
+  startDate?: string,
+  endDate?: string
+) {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['ratings-analysis', appId, platform, startDate, endDate],
+    queryFn: async () => invoke('analyze_ratings', { 
+      appId, 
+      platform,
+      startDate,
+      endDate, 
+    }),
+    enabled: !!appId && !!platform,
+  });
+}
+
+// Keywords
+export function useKeywordDiscovery(query: string, platform: 'ios' | 'android') {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['keyword-discovery', query, platform],
+    queryFn: async () => invoke('discover_keywords', { query, platform }),
+    enabled: !!query && !!platform,
+  });
+}
+
+export function useTopKeywords(appIds: string[], platform: 'ios' | 'android') {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['top-keywords', appIds.join(','), platform],
+    queryFn: async () => invoke('analyze_top_keywords', { appIds, platform }),
+    enabled: appIds.length > 0 && !!platform,
+  });
+}
+
+// Competitors
+export function useCompetitors(appId: string, platform: 'ios' | 'android') {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['competitors', appId, platform],
+    queryFn: async () => invoke('get_competitors', { appId, platform }),
+    enabled: !!appId && !!platform,
+  });
+}
+
+export function useCompetitivePosition(
+  appId: string, 
+  platform: 'ios' | 'android',
+  competitors?: string[]
+) {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['competitive-position', appId, platform, competitors?.join(',')],
+    queryFn: async () => invoke('analyze_competitive_position', { 
+      appId, 
+      platform,
+      competitors, 
+    }),
+    enabled: !!appId && !!platform,
+  });
+}
+
+// Downloads
+export function useDownloads(
+  appId: string, 
+  platform: 'ios' | 'android',
+  country: string,
+  startDate: string,
+  endDate: string
+) {
+  const { invoke } = useMcp();
+  
+  return useQuery({
+    queryKey: ['downloads', appId, platform, country, startDate, endDate],
+    queryFn: async () => invoke('get_downloads', { 
+      appId, 
+      platform,
+      country,
+      startDate,
+      endDate, 
+    }),
+    enabled: !!appId && !!platform && !!country && !!startDate && !!endDate,
+  });
+}
+```
+
+## Step 7: Update Components to Use the New Hooks
+
+Now update your components to use these new hooks. For example, updating the Overview tab:
 
 ```tsx
-import React, { useRef, useEffect } from "react";
-import { useRouting } from "@/contexts/RoutingContext";
-import { useAppDetails, useDownloadStats } from "@/hooks/app-data";
-import MetricCard from "../ui/MetricCard";
-import ChartContainer from "../ui/ChartContainer";
-// ...other imports
+import React, { useRef } from 'react';
+import { useRouting } from '@/contexts/RoutingContext';
+import MetricCard from '../ui/MetricCard';
+import ChartContainer from '../ui/ChartContainer';
+import DataTable from '../ui/DataTable';
+import InsightsPanel from '../ui/InsightsPanel';
+import { useAppDetails, useDownloads, useTopKeywords } from '@/hooks/app-data';
+import { formatDownloadData, formatKeywordData } from '@/utils/data-formatters';
 
 const OverviewTab = () => {
   const { activeSection, highlightSection, resetRouting } = useRouting();
-  const { data: appDetails } = useAppDetails('123456789', 'ios');
-  const { data: downloadStats } = useDownloadStats('123456789', 'ios');
   
   // Create refs for each section
   const appInfoRef = useRef<HTMLDivElement>(null);
   const downloadStatsRef = useRef<HTMLDivElement>(null);
+  const performanceTrendsRef = useRef<HTMLDivElement>(null);
   // ...other refs
   
   // Map section IDs to refs
-  const sectionRefs: Record<string, React.RefObject<HTMLDivElement>> = {
-    "app-info": appInfoRef,
-    "download-statistics": downloadStatsRef,
-    // ...other section mappings
+  const sectionRefs = {
+    'app-info': appInfoRef,
+    'download-statistics': downloadStatsRef,
+    'performance-trends': performanceTrendsRef,
+    // ...other mappings
   };
   
-  // Scroll to active section when it changes
-  useEffect(() => {
+  // Fetch data using our new hooks
+  const { data: appDetails, isLoading: isLoadingApp } = useAppDetails('123456789', 'ios');
+  const { data: downloadData, isLoading: isLoadingDownloads } = useDownloads(
+    '123456789', 
+    'ios', 
+    'US', 
+    '2023-01-01', 
+    '2023-06-30'
+  );
+  const { data: keywordData, isLoading: isLoadingKeywords } = useTopKeywords(['123456789'], 'ios');
+  
+  // Handle section highlighting
+  React.useEffect(() => {
     if (activeSection && sectionRefs[activeSection]?.current) {
       // Scroll to the section
       sectionRefs[activeSection].current?.scrollIntoView({ 
@@ -371,33 +526,31 @@ const OverviewTab = () => {
       }
     }
   }, [activeSection, highlightSection, resetRouting]);
-
+  
+  // Render loading state
+  if (isLoadingApp || isLoadingDownloads || isLoadingKeywords) {
+    return <div>Loading dashboard data...</div>;
+  }
+  
+  // Format the data
+  const formattedDownloadData = formatDownloadData(downloadData);
+  const formattedKeywordData = formatKeywordData(keywordData);
+  
   return (
     <div className="space-y-6 animate-fade-in">
       {/* App Info Section */}
       <div ref={appInfoRef} id="app-info" className="section-container">
-        {appDetails && (
-          <div>
-            <h2>{appDetails.name}</h2>
-            <p>{appDetails.description}</p>
-            {/* ...more app info */}
-          </div>
-        )}
+        {/* App info content */}
       </div>
       
       {/* Download Statistics Section */}
       <div ref={downloadStatsRef} id="download-statistics" className="section-container">
-        {downloadStats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <MetricCard 
-              title="Total Downloads" 
-              value={downloadStats.totalDownloads} 
-              change={downloadStats.change} 
-              trend={downloadStats.trend as 'up' | 'down'} 
-            />
-            {/* ...other metrics */}
-          </div>
-        )}
+        {/* Download statistics content using formattedDownloadData */}
+      </div>
+      
+      {/* Performance Trends Section */}
+      <div ref={performanceTrendsRef} id="performance-trends" className="section-container">
+        {/* Performance trends content */}
       </div>
       
       {/* ...other sections */}
@@ -408,160 +561,97 @@ const OverviewTab = () => {
 export default OverviewTab;
 ```
 
-## Step 7: Create Data Hooks
+## Step 8: Create a Test Component
 
-Create a hooks directory with files for each data type. For example, `src/hooks/app-data.ts`:
-
-```typescript
-import { useQuery } from '@tanstack/react-query';
-import { useMcp } from '@/contexts/McpContext';
-
-// App Details
-export function useAppDetails(appId: string, platform: 'ios' | 'android') {
-  const { invoke } = useMcp();
-  
-  return useQuery({
-    queryKey: ['app-details', appId, platform],
-    queryFn: async () => {
-      return invoke('get_app_details', { appId, platform });
-    },
-    enabled: !!appId && !!platform,
-  });
-}
-
-// Download Statistics
-export function useDownloadStats(
-  appId: string, 
-  platform: 'ios' | 'android', 
-  startDate = '2023-01-01', 
-  endDate = '2023-12-31'
-) {
-  const { invoke } = useMcp();
-  
-  return useQuery({
-    queryKey: ['downloads', appId, platform, startDate, endDate],
-    queryFn: async () => {
-      return invoke('get_downloads', { 
-        appId, 
-        platform, 
-        country: 'US',
-        startDate,
-        endDate
-      });
-    },
-    enabled: !!appId && !!platform,
-  });
-}
-
-// ... similar hooks for other data types
-
-// Reviews
-export function useReviews(appId: string, platform: 'ios' | 'android') {
-  const { invoke } = useMcp();
-  
-  return useQuery({
-    queryKey: ['reviews', appId, platform],
-    queryFn: async () => {
-      return invoke('get_reviews', { appId, platform });
-    },
-    enabled: !!appId && !!platform,
-  });
-}
-
-// Keywords
-export function useTopKeywords(appId: string, platform: 'ios' | 'android') {
-  const { invoke } = useMcp();
-  
-  return useQuery({
-    queryKey: ['top-keywords', appId, platform],
-    queryFn: async () => {
-      return invoke('analyze_top_keywords', { 
-        appIds: [appId], 
-        platform,
-        limit: 20
-      });
-    },
-    enabled: !!appId && !!platform,
-  });
-}
-
-// Competitors
-export function useCompetitors(appId: string, platform: 'ios' | 'android') {
-  const { invoke } = useMcp();
-  
-  return useQuery({
-    queryKey: ['competitors', appId, platform],
-    queryFn: async () => {
-      return invoke('get_competitors', { appId, platform });
-    },
-    enabled: !!appId && !!platform,
-  });
-}
-```
-
-## Step 8: Add Connection Status Indicator
-
-Add a status indicator to show when the MCP client is connected:
+To verify the integration is working correctly, you can create a simple test component:
 
 ```tsx
-// src/components/ui/McpConnectionStatus.tsx
+import React from 'react';
 import { useMcp } from '@/contexts/McpContext';
 
-export const McpConnectionStatus = () => {
-  const { isConnected, error } = useMcp();
+const McpTestComponent = () => {
+  const { isConnected, error, invoke } = useMcp();
+  const [result, setResult] = React.useState<any>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
   
-  if (error) {
-    return (
-      <div className="bg-red-100 text-red-700 px-3 py-1 rounded-md text-sm">
-        MCP Error: {error.message}
-      </div>
-    );
-  }
-  
-  if (!isConnected) {
-    return (
-      <div className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md text-sm">
-        Connecting to server...
-      </div>
-    );
-  }
+  const testConnection = async () => {
+    if (!isConnected) return;
+    
+    setIsLoading(true);
+    try {
+      // Simple echo test
+      const echoResult = await invoke('echo', { message: 'Hello from the dashboard!' });
+      setResult(echoResult);
+    } catch (err) {
+      console.error('Test failed:', err);
+      setResult({ error: String(err) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   return (
-    <div className="bg-green-100 text-green-700 px-3 py-1 rounded-md text-sm">
-      Connected to MCP server
+    <div className="p-4 border rounded-lg">
+      <h2 className="text-lg font-medium mb-2">MCP Connection Test</h2>
+      <div className="mb-4">
+        <p>Connection status: {isConnected ? '✅ Connected' : '❌ Disconnected'}</p>
+        {error && <p className="text-red-500">Error: {error.message}</p>}
+      </div>
+      
+      <button 
+        onClick={testConnection}
+        disabled={!isConnected || isLoading}
+        className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+      >
+        {isLoading ? 'Testing...' : 'Test Connection'}
+      </button>
+      
+      {result && (
+        <div className="mt-4 p-3 bg-gray-100 rounded overflow-auto">
+          <pre>{JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
     </div>
   );
 };
+
+export default McpTestComponent;
 ```
 
-Then add this component to your header in `Index.tsx`:
+You can add this component temporarily to your Index page to verify that everything is working correctly.
 
-```tsx
-import { McpConnectionStatus } from '@/components/ui/McpConnectionStatus';
+## Step 9: Deploy to Production
 
-// Inside your header JSX
-<header className="border-b bg-white py-4 px-6">
-  <div className="flex justify-between items-center">
-    <h1 className="text-xl font-medium">ASO Dashboard</h1>
-    <div className="flex items-center gap-4">
-      <McpConnectionStatus />
-      <div className="text-sm text-muted-foreground">Last updated: June 10, 2023</div>
-      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-        JS
-      </div>
-    </div>
-  </div>
-</header>
-```
+Once everything is working correctly:
 
-## Deployment Checklist
+1. Deploy your MCP server to Vercel
+2. Set the `REACT_APP_MCP_SERVER_URL` environment variable in your dashboard deployment
+3. Deploy the updated dashboard
 
-Before deploying:
+## Troubleshooting
 
-1. Make sure your AppTweak MCP server is deployed to Vercel and running
-2. Add the `REACT_APP_MCP_SERVER_URL` environment variable to your app-optimizer-dashboard environment
-3. Test the connection locally before deploying
-4. Remove any direct AppTweak API calls from your dashboard code
-5. Ensure all components correctly use the MCP hooks
+### Connection Issues
 
-After these changes, your app-optimizer-dashboard will automatically navigate to the right tab and section whenever it receives data from the AppTweak MCP server!
+If you're having trouble connecting to the MCP server:
+
+1. Check that the server is deployed and running correctly
+2. Verify that the URL is correct and accessible
+3. Check browser console for CORS errors (the MCP server may need CORS headers)
+4. Try running locally with a local MCP server first
+
+### Data Not Showing Up
+
+If the data is not appearing:
+
+1. Check the browser console for errors
+2. Verify that the AppTweak API key is set correctly in the MCP server
+3. Test the API directly to ensure it's returning data
+4. Add more logging to the MCP server to see if requests are being received
+
+### Routing Not Working
+
+If automatic routing is not working:
+
+1. Check that the metadata is correctly included in the MCP server responses
+2. Verify that the routing context is properly connected
+3. Add console logs to trace the flow of routing information
